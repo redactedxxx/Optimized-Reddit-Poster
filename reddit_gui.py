@@ -25,10 +25,12 @@ rows = main_tab.get_all_records()
 client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client Name'])))
 selected_client = st.selectbox("Select Client", client_names)
 
+# Load subreddit dropdown
 best_times = best_time_tab.get_all_records()
 subreddit_list = sorted(set(row["Subreddit"].strip() for row in best_times if row["Subreddit"].strip()))
 subreddit = st.selectbox("Select Subreddit", subreddit_list)
 
+# Persist input fields
 if "title" not in st.session_state:
     st.session_state.title = ""
 if "url" not in st.session_state:
@@ -39,7 +41,6 @@ if "uploaded_image" not in st.session_state:
 title = st.text_input("Title", value=st.session_state.title, key="title")
 url = st.text_input("Link (RedGIF or other media URL)", value=st.session_state.url, key="url")
 uploaded_image = st.file_uploader("Optional: Upload an image to schedule", type=["jpg", "jpeg", "png"], key="uploaded_image")
-
 
 # Upload image to Imgur
 def upload_to_imgur(image_file):
@@ -122,7 +123,7 @@ if st.button("Schedule Post"):
     if not final_url and uploaded_image:
         final_url = upload_to_imgur(uploaded_image)
 
-       if template and subreddit and title and final_url:
+    if template and subreddit and title and final_url:
         scheduled_time = get_next_best_time(subreddit)
 
         if not scheduled_time:
@@ -133,19 +134,18 @@ if st.button("Schedule Post"):
                 subreddit.strip(),
                 title.strip(),
                 final_url,
+                scheduled_time,
                 template['Reddit Username'],
+                template['Reddit Password'],
                 template['Client ID'],
                 template['Client Secret'],
                 template['User Agent'],
-                template['Reddit Password'],
-                f"script by u/{template['Reddit Username']}",
-                scheduled_time,
                 "FALSE"
             ]
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
             st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
 
-            # ✅ Reset inputs AFTER successful scheduling
+            # Reset inputs
             st.session_state.title = ""
             st.session_state.url = ""
             st.session_state.uploaded_image = None
