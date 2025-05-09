@@ -29,10 +29,17 @@ best_times = best_time_tab.get_all_records()
 subreddit_list = sorted(set(row["Subreddit"].strip() for row in best_times if row["Subreddit"].strip()))
 subreddit = st.selectbox("Select Subreddit", subreddit_list)
 
-title = st.text_input("Title")
-url = st.text_input("Link (RedGIF or other media URL)")
+if "title" not in st.session_state:
+    st.session_state.title = ""
+if "url" not in st.session_state:
+    st.session_state.url = ""
+if "uploaded_image" not in st.session_state:
+    st.session_state.uploaded_image = None
 
-uploaded_image = st.file_uploader("Optional: Upload an image to schedule", type=["jpg", "jpeg", "png"])
+title = st.text_input("Title", value=st.session_state.title, key="title")
+url = st.text_input("Link (RedGIF or other media URL)", value=st.session_state.url, key="url")
+uploaded_image = st.file_uploader("Optional: Upload an image to schedule", type=["jpg", "jpeg", "png"], key="uploaded_image")
+
 
 # Upload image to Imgur
 def upload_to_imgur(image_file):
@@ -115,7 +122,7 @@ if st.button("Schedule Post"):
     if not final_url and uploaded_image:
         final_url = upload_to_imgur(uploaded_image)
 
-    if template and subreddit and title and final_url:
+       if template and subreddit and title and final_url:
         scheduled_time = get_next_best_time(subreddit)
 
         if not scheduled_time:
@@ -137,5 +144,11 @@ if st.button("Schedule Post"):
             ]
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
             st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
+
+            # ✅ Reset inputs AFTER successful scheduling
+            st.session_state.title = ""
+            st.session_state.url = ""
+            st.session_state.uploaded_image = None
+
     else:
         st.error("⚠️ Please fill all fields and ensure either a link or image is provided.")
