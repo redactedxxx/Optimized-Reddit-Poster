@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 import random
 import pytz
+import requests
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 
@@ -27,6 +28,24 @@ selected_client = st.selectbox("Select Client", client_names)
 subreddit = st.text_input("Subreddit", placeholder="e.g. r/RealGirls")
 title = st.text_input("Title")
 url = st.text_input("Link (RedGIF or other media URL)")
+
+uploaded_image = st.file_uploader("Optional: Upload an image to schedule", type=["jpg", "jpeg", "png"])
+
+# Upload image to Imgur
+def upload_to_imgur(image_file):
+    headers = {
+        "Authorization": f"Client-ID {st.secrets['imgur']['client_id']}"
+    }
+    response = requests.post(
+        "https://api.imgur.com/3/image",
+        headers=headers,
+        files={"image": image_file}
+    )
+    if response.status_code == 200:
+        return response.json()["data"]["link"]
+    else:
+        st.error("⚠️ Failed to upload image to Imgur.")
+        return None
 
 # Randomized best time picker
 def get_next_best_time(subreddit_name):
@@ -87,10 +106,15 @@ if subreddit:
 # Schedule post
 if st.button("Schedule Post"):
     template = next((row for row in rows if row['Client Name'] == selected_client), None)
-    
-    if template and subreddit and title and url:
+
+    # Get final URL to post
+    final_url = url.strip()
+    if not final_url and uploaded_image:
+        final_url = upload_to_imgur(uploaded_image)
+
+    if template and subreddit and title and final_url:
         scheduled_time = get_next_best_time(subreddit)
-        
+
         if not scheduled_time:
             st.error("⚠️ No valid future best post time found for this subreddit.")
         else:
@@ -98,7 +122,7 @@ if st.button("Schedule Post"):
                 selected_client,
                 subreddit.strip(),
                 title.strip(),
-                url.strip(),
+                final_url,
                 template['Reddit Username'],
                 template['Client ID'],
                 template['Client Secret'],
@@ -111,4 +135,4 @@ if st.button("Schedule Post"):
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
             st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
     else:
-        st.error("⚠️ Please fill all fields and make sure the client exists.")
+        st.error("⚠️ Please fill all fields and ensure either a link or image is provided.")
