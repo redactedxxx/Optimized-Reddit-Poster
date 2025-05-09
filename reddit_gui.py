@@ -36,9 +36,7 @@ if "title" not in st.session_state:
 if "url" not in st.session_state:
     st.session_state.url = ""
 if "uploaded_image" not in st.session_state:
-    pass  # Placeholder since Streamlit doesn't allow manual setting here
-
-
+    pass  # file_uploader cannot be reset directly
 
 title = st.text_input("Title", value=st.session_state.title, key="title")
 url = st.text_input("Link (RedGIF or other media URL)", value=st.session_state.url, key="url")
@@ -146,9 +144,6 @@ if st.button("Schedule Post"):
             ]
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
             st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
-
-           st.experimental_rerun()
-
-
+            st.experimental_rerun()
     else:
         st.error("⚠️ Please fill all fields and ensure either a link or image is provided.")
