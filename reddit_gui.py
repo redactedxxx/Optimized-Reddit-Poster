@@ -36,6 +36,8 @@ if "title" not in st.session_state:
 if "url" not in st.session_state:
     st.session_state.url = ""
 if "uploaded_image" not in st.session_state:
+    pass  # Placeholder since Streamlit doesn't allow manual setting here
+
 
 
 title = st.text_input("Title", value=st.session_state.title, key="title")
