@@ -8,8 +8,6 @@ from datetime import datetime, timedelta
 # Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
-
-
 client = gspread.authorize(creds)
 
 # Access tabs
@@ -68,12 +66,11 @@ def get_next_best_time(subreddit_name):
 
     return None
 
-# Schedule post
+# Show EST preview of best post time
 if subreddit:
     preview_time_utc = get_next_best_time(subreddit)
     if preview_time_utc:
         try:
-            # Convert to Eastern Time for display
             utc_time = datetime.strptime(preview_time_utc, "%Y-%m-%d %H:%M:%S")
             eastern = pytz.timezone('US/Eastern')
             utc = pytz.utc
@@ -82,13 +79,12 @@ if subreddit:
 
             display_time = est_time.strftime("%A %B %d, %Y at %I:%M %p EST")
             st.info(f"📅 Next best post time for **{subreddit.strip()}**: `{display_time}`")
-
         except Exception as e:
             st.warning(f"⚠️ Found time, but couldn't convert to EST: {e}")
     else:
         st.warning("⚠️ No scheduled best times found for that subreddit.")
 
-
+# Schedule post
 if st.button("Schedule Post"):
     template = next((row for row in rows if row['Client Name'] == selected_client), None)
     
