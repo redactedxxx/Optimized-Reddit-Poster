@@ -7,7 +7,8 @@ from datetime import datetime, timedelta
 
 # Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-from_json_keyfile_dict(st.secrets["google"], scope)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
+
 
 client = gspread.authorize(creds)
 
