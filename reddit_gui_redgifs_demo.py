@@ -34,21 +34,34 @@ title = st.text_input("Title (you write it)")
 url = st.text_input("Selected RedGIFs Video URL")
 
 # 🔍 Scrape RedGIFs user profile
+import re
+import json
+
 @st.cache_data(ttl=300)
 def get_redgifs_videos(username):
-    redgifs_url = f"https://www.redgifs.com/users/{username}"
-    resp = requests.get(redgifs_url)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    previews = []
-    for a in soup.find_all("a", href=True):
-        if "/watch/" in a["href"]:
-            thumb = a.find("img")
-            if thumb and "src" in thumb.attrs:
+    url = f"https://www.redgifs.com/users/{username}"
+    resp = requests.get(url)
+    
+    # Extract the embedded video JSON
+    matches = re.findall(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', resp.text)
+    if not matches:
+        return []
+
+    try:
+        data = json.loads(matches[0])
+        posts = data["props"]["pageProps"]["userProfile"]["animatedGifs"]
+        previews = []
+        for post in posts:
+            if "urls" in post:
                 previews.append({
-                    "thumb": thumb["src"],
-                    "link": "https://www.redgifs.com" + a["href"]
+                    "thumb": post["urls"].get("poster", ""),
+                    "link": f"https://www.redgifs.com/watch/{post['id']}"
                 })
-    return previews
+        return previews
+    except Exception as e:
+        st.error(f"Failed to parse RedGIFs data: {e}")
+        return []
+
 
 # Get Natasha’s RedGIFs
 redgifs_username = "knottynatasha"
