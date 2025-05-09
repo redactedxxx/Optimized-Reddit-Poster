@@ -25,7 +25,10 @@ rows = main_tab.get_all_records()
 client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client Name'])))
 selected_client = st.selectbox("Select Client", client_names)
 
-subreddit = st.text_input("Subreddit", placeholder="e.g. r/RealGirls")
+best_times = best_time_tab.get_all_records()
+subreddit_list = sorted(set(row["Subreddit"].strip() for row in best_times if row["Subreddit"].strip()))
+subreddit = st.selectbox("Select Subreddit", subreddit_list)
+
 title = st.text_input("Title")
 url = st.text_input("Link (RedGIF or other media URL)")
 
