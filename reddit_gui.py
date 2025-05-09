@@ -147,10 +147,8 @@ if st.button("Schedule Post"):
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
             st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
 
-            # Reset inputs
-            st.session_state.title = ""
-            st.session_state.url = ""
-            st.session_state.uploaded_image = None
+           st.experimental_rerun()
+
 
     else:
         st.error("⚠️ Please fill all fields and ensure either a link or image is provided.")
