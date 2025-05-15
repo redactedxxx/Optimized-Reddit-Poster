@@ -2,7 +2,7 @@ import streamlit as st
 import gspread
 import random
 import pytz
-import requests
+import praw
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 
@@ -25,38 +25,31 @@ rows = main_tab.get_all_records()
 client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client Name'])))
 selected_client = st.selectbox("Select Client", client_names)
 
-# Load subreddit dropdown
-best_times = best_time_tab.get_all_records()
-subreddit_list = sorted(set(row["Subreddit"].strip() for row in best_times if row["Subreddit"].strip()))
-subreddit = st.selectbox("Select Subreddit", subreddit_list)
+subreddit = st.text_input("Subreddit", placeholder="e.g. r/RealGirls")
+title = st.text_input("Title")
+url = st.text_input("Link (RedGIF or other media URL)")
 
-# Persist input fields
-if "title" not in st.session_state:
-    st.session_state.title = ""
-if "url" not in st.session_state:
-    st.session_state.url = ""
-if "uploaded_image" not in st.session_state:
-    pass  # file_uploader cannot be reset directly
-
-title = st.text_input("Title", value=st.session_state.title, key="title")
-url = st.text_input("Link (RedGIF or other media URL)", value=st.session_state.url, key="url")
-uploaded_image = st.file_uploader("Optional: Upload an image to schedule", type=["jpg", "jpeg", "png"], key="uploaded_image")
-
-# Upload image to Imgur
-def upload_to_imgur(image_file):
-    headers = {
-        "Authorization": f"Client-ID {st.secrets['imgur']['client_id']}"
-    }
-    response = requests.post(
-        "https://api.imgur.com/3/image",
-        headers=headers,
-        files={"image": image_file}
-    )
-    if response.status_code == 200:
-        return response.json()["data"]["link"]
-    else:
-        st.error("⚠️ Failed to upload image to Imgur.")
-        return None
+# Flair selection
+flair_text = ""
+if subreddit:
+    try:
+        # Pull credentials from selected client template
+        template = next((row for row in rows if row['Client Name'] == selected_client), None)
+        if template:
+            reddit = praw.Reddit(
+                client_id=template["Client ID"],
+                client_secret=template["Client Secret"],
+                password=template["Reddit Password"],
+                user_agent=template["User Agent"],
+                username=template["Reddit Username"]
+            )
+            sub = reddit.subreddit(subreddit.replace("r/", "").strip())
+            flair_templates = sub.flair.link_templates
+            flair_options = [f["text"] for f in flair_templates]
+            if flair_options:
+                flair_text = st.selectbox("🎯 Optional Flair", flair_options)
+    except Exception as e:
+        st.warning(f"⚠️ Could not load flairs: {e}")
 
 # Randomized best time picker
 def get_next_best_time(subreddit_name):
@@ -96,11 +89,12 @@ def get_next_best_time(subreddit_name):
 
     return None
 
-# Show EST preview of best post time
+# Show preview time
 if subreddit:
     preview_time_utc = get_next_best_time(subreddit)
     if preview_time_utc:
         try:
+            # Convert to Eastern Time for display
             utc_time = datetime.strptime(preview_time_utc, "%Y-%m-%d %H:%M:%S")
             eastern = pytz.timezone('US/Eastern')
             utc = pytz.utc
@@ -109,6 +103,7 @@ if subreddit:
 
             display_time = est_time.strftime("%A %B %d, %Y at %I:%M %p EST")
             st.info(f"📅 Next best post time for **{subreddit.strip()}**: `{display_time}`")
+
         except Exception as e:
             st.warning(f"⚠️ Found time, but couldn't convert to EST: {e}")
     else:
@@ -117,15 +112,10 @@ if subreddit:
 # Schedule post
 if st.button("Schedule Post"):
     template = next((row for row in rows if row['Client Name'] == selected_client), None)
-
-    # Get final URL to post
-    final_url = url.strip()
-    if not final_url and uploaded_image:
-        final_url = upload_to_imgur(uploaded_image)
-
-    if template and subreddit and title and final_url:
+    
+    if template and subreddit and title and url:
         scheduled_time = get_next_best_time(subreddit)
-
+        
         if not scheduled_time:
             st.error("⚠️ No valid future best post time found for this subreddit.")
         else:
@@ -133,17 +123,18 @@ if st.button("Schedule Post"):
                 selected_client,
                 subreddit.strip(),
                 title.strip(),
-                final_url,
+                url.strip(),
+                flair_text,  # Flair Text column
                 scheduled_time,
+                "FALSE",
                 template['Reddit Username'],
-                template['Reddit Password'],
                 template['Client ID'],
                 template['Client Secret'],
                 template['User Agent'],
-                "FALSE"
+                template['Reddit Password'],
+                f"script by u/{template['Reddit Username']}"
             ]
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
             st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
-            st.experimental_rerun()
     else:
-        st.error("⚠️ Please fill all fields and ensure either a link or image is provided.")
+        st.error("⚠️ Please fill all fields and make sure the client exists.")
