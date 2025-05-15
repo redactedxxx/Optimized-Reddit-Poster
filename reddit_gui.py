@@ -8,16 +8,12 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 
 # ==============================
-# Google Sheets setup (cloud + local)
+# Google Sheets setup (GitHub/Cloud)
 # ==============================
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-try:
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
-except Exception:
-    creds = ServiceAccountCredentials.from_json_keyfile_name(
-        os.path.expanduser("~/Documents/redactedreddit/google-credentials.json"), scope)
-
+# Cloud-compatible secret loading
+creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
 client = gspread.authorize(creds)
 
 # ==============================
