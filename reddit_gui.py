@@ -31,7 +31,7 @@ best_time_tab = sheet.worksheet("Best Time")
 # ==============================
 # UI Header
 # ==============================
-st.title("\ud83d\udcec Reddit Post Scheduler")
+st.title("📬 Reddit Post Scheduler")
 
 rows = main_tab.get_all_records()
 client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client Name'])))
