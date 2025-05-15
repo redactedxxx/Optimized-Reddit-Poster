@@ -3,25 +3,36 @@ import gspread
 import random
 import pytz
 import praw
+import os
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 
-# Google Sheets setup
+# ==============================
+# Google Sheets setup (cloud + local)
+# ==============================
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(
-    "/Users/natashacarter/Documents/redactedreddit/google-credentials.json", scope)
+
+try:
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
+except Exception:
+    creds = ServiceAccountCredentials.from_json_keyfile_name(
+        os.path.expanduser("~/Documents/redactedreddit/google-credentials.json"), scope)
+
 client = gspread.authorize(creds)
 
-# Access tabs
+# ==============================
+# Google Sheets tabs
+# ==============================
 sheet = client.open("Reddit Post Scheduler")
 main_tab = sheet.worksheet("Sheet1")
 post_tab = sheet.worksheet("Post Queue")
 best_time_tab = sheet.worksheet("Best Time")
 
+# ==============================
 # UI Header
+# ==============================
 st.title("📬 Reddit Post Scheduler")
 
-# Load client names
 rows = main_tab.get_all_records()
 client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client Name'])))
 selected_client = st.selectbox("Select Client", client_names)
@@ -30,11 +41,12 @@ subreddit = st.text_input("Subreddit", placeholder="e.g. r/RealGirls")
 title = st.text_input("Title")
 url = st.text_input("Link (RedGIF or other media URL)")
 
-# Flair selection
+# ==============================
+# Flair dropdown (if subreddit entered)
+# ==============================
 flair_text = ""
 if subreddit:
     try:
-        # Pull credentials from selected client template
         template = next((row for row in rows if row['Client Name'] == selected_client), None)
         if template:
             reddit = praw.Reddit(
@@ -52,7 +64,9 @@ if subreddit:
     except Exception as e:
         st.warning(f"⚠️ Could not load flairs: {e}")
 
-# Randomized best time picker
+# ==============================
+# Best time logic
+# ==============================
 def get_next_best_time(subreddit_name):
     times = best_time_tab.get_all_records()
     now = datetime.utcnow()
@@ -62,7 +76,6 @@ def get_next_best_time(subreddit_name):
     }
 
     future_times = []
-
     for row in times:
         if row['Subreddit'].strip().lower() == subreddit_name.strip().lower():
             try:
@@ -80,22 +93,21 @@ def get_next_best_time(subreddit_name):
                     post_datetime += timedelta(days=7)
 
                 future_times.append(post_datetime)
-
-            except Exception as e:
-                print(f"Error parsing time for {subreddit_name}: {e}")
+            except:
+                continue
 
     if future_times:
         selected_time = random.choice(future_times)
         return selected_time.strftime("%Y-%m-%d %H:%M:%S")
-
     return None
 
-# Show preview time
+# ==============================
+# Display next best post time
+# ==============================
 if subreddit:
     preview_time_utc = get_next_best_time(subreddit)
     if preview_time_utc:
         try:
-            # Convert to Eastern Time for display
             utc_time = datetime.strptime(preview_time_utc, "%Y-%m-%d %H:%M:%S")
             eastern = pytz.timezone('US/Eastern')
             utc = pytz.utc
@@ -104,19 +116,19 @@ if subreddit:
 
             display_time = est_time.strftime("%A %B %d, %Y at %I:%M %p EST")
             st.info(f"📅 Next best post time for **{subreddit.strip()}**: `{display_time}`")
-
         except Exception as e:
             st.warning(f"⚠️ Found time, but couldn't convert to EST: {e}")
     else:
         st.warning("⚠️ No scheduled best times found for that subreddit.")
 
-# Schedule post
+# ==============================
+# Schedule Post
+# ==============================
 if st.button("Schedule Post"):
     template = next((row for row in rows if row['Client Name'] == selected_client), None)
     
     if template and subreddit and title and url:
         scheduled_time = get_next_best_time(subreddit)
-        
         if not scheduled_time:
             st.error("⚠️ No valid future best post time found for this subreddit.")
         else:
