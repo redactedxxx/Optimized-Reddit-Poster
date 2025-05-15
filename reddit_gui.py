@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 # ==============================
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-# Cloud-compatible secret loading
 creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
 client = gspread.authorize(creds)
 
@@ -27,7 +26,7 @@ best_time_tab = sheet.worksheet("Best Time")
 # ==============================
 # UI Header
 # ==============================
-st.title("📬 Reddit Post Scheduler")
+st.title("Reddit Post Scheduler")
 
 rows = main_tab.get_all_records()
 client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client Name'])))
@@ -41,7 +40,7 @@ subreddit_options = sorted(set(
     row['Subreddit'].strip() for row in subreddit_rows if row.get('Subreddit', '').strip()
 ))
 
-use_dropdown = st.toggle("🔽 Use subreddit dropdown instead of typing", value=True)
+use_dropdown = st.toggle("Use subreddit dropdown instead of typing", value=True)
 
 if use_dropdown:
     subreddit = st.selectbox("Subreddit", subreddit_options)
@@ -70,9 +69,9 @@ if subreddit:
             flair_templates = sub.flair.link_templates
             flair_options = [f["text"] for f in flair_templates]
             if flair_options:
-                flair_text = st.selectbox("🎯 Optional Flair", flair_options)
+                flair_text = st.selectbox("Optional Flair", flair_options)
     except Exception as e:
-        st.warning(f"⚠️ Could not load flairs: {e}")
+        st.warning(f"Could not load flairs: {e}")
 
 # ==============================
 # Helper: Count how many posts to a subreddit on a given day
@@ -117,7 +116,6 @@ def get_next_best_time(subreddit_name):
                     post_datetime = post_datetime.replace(hour=best_hour, minute=0, second=0, microsecond=0)
 
                     if post_datetime > now:
-                        # Skip if 4 or more posts already scheduled
                         if count_subreddit_posts_on_day(subreddit_name, post_datetime.date()) < 4:
                             future_times.append(post_datetime)
             except:
@@ -144,12 +142,12 @@ if subreddit:
             display_time = est_time.strftime("%A %B %d, %Y at %I:%M %p EST")
             post_count = count_subreddit_posts_on_day(subreddit, est_time.date())
 
-            st.info(f"📅 Next best post time for **{subreddit.strip()}**: `{display_time}`")
-            st.caption(f"📊 There are {post_count} post(s) already scheduled for this day to r/{subreddit.strip()}.")
+            st.info(f"Next best post time for {subreddit.strip()}: {display_time}")
+            st.caption(f"There are {post_count} post(s) already scheduled for this day to r/{subreddit.strip()}.")
         except Exception as e:
-            st.warning(f"⚠️ Found time, but couldn't convert to EST: {e}")
+            st.warning(f"Found time, but couldn't convert to EST: {e}")
     else:
-        st.warning("⚠️ No scheduled best times found for that subreddit.")
+        st.warning("No scheduled best times found for that subreddit.")
 
 # ==============================
 # Schedule Post
@@ -160,23 +158,23 @@ if st.button("Schedule Post"):
     if template and subreddit and title and url:
         scheduled_time = get_next_best_time(subreddit)
         if not scheduled_time:
-            st.error("⚠️ No valid future best post time found for this subreddit.")
+            st.error("No valid future best post time found for this subreddit.")
         else:
             new_row = [
-                selected_client,              # A - Client Name
-                subreddit.strip(),            # B - Subreddit
-                title.strip(),                # C - Title
-                url.strip(),                  # D - URL
-                scheduled_time,               # E - Post Time (UTC)
-                template['Reddit Username'],  # F - Reddit Username
-                template['Reddit Password'],  # G - Reddit Password
-                template['Client ID'],        # H - Client ID
-                template['Client Secret'],    # I - Client Secret
-                template['User Agent'],       # J - User Agent
-                "FALSE",                      # K - Posted?
-                flair_text                    # L - Flair Text
+                selected_client,
+                subreddit.strip(),
+                title.strip(),
+                url.strip(),
+                scheduled_time,
+                template['Reddit Username'],
+                template['Reddit Password'],
+                template['Client ID'],
+                template['Client Secret'],
+                template['User Agent'],
+                "FALSE",
+                flair_text
             ]
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
-            st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
+            st.success(f"Post scheduled for {scheduled_time} UTC.")
     else:
-        st.error("⚠️ Please fill all fields and make sure the client exists.")
+        st.error("Please fill all fields and make sure the client exists.")
