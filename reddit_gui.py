@@ -37,7 +37,9 @@ rows = main_tab.get_all_records()
 client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client Name'])))
 selected_client = st.selectbox("Select Client", client_names)
 
-# Load subreddit options from Best Time tab and sort alphabetically
+# ==============================
+# Subreddit dropdown or manual entry
+# ==============================
 subreddit_rows = best_time_tab.get_all_records()
 subreddit_options = sorted(set(
     row['Subreddit'].strip() for row in subreddit_rows if row.get('Subreddit', '').strip()
@@ -77,7 +79,7 @@ if subreddit:
         st.warning(f"⚠️ Could not load flairs: {e}")
 
 # ==============================
-# Best time logic
+# Improved scheduling logic: spread across 4 weeks
 # ==============================
 def get_next_best_time(subreddit_name):
     times = best_time_tab.get_all_records()
@@ -88,6 +90,7 @@ def get_next_best_time(subreddit_name):
     }
 
     future_times = []
+
     for row in times:
         if row['Subreddit'].strip().lower() == subreddit_name.strip().lower():
             try:
@@ -95,22 +98,20 @@ def get_next_best_time(subreddit_name):
                 best_hour = int(row['Best Hour (UTC)'])
 
                 target_weekday = weekdays[best_day]
-                today_weekday = now.weekday()
 
-                days_ahead = (target_weekday - today_weekday + 7) % 7
-                post_date = now + timedelta(days=days_ahead)
-                post_datetime = post_date.replace(hour=best_hour, minute=0, second=0, microsecond=0)
+                for week_ahead in range(4):  # Look ahead 4 weeks
+                    days_until_target = (target_weekday - now.weekday() + 7) % 7 + (week_ahead * 7)
+                    post_datetime = now + timedelta(days=days_until_target)
+                    post_datetime = post_datetime.replace(hour=best_hour, minute=0, second=0, microsecond=0)
 
-                if post_datetime <= now:
-                    post_datetime += timedelta(days=7)
-
-                future_times.append(post_datetime)
+                    if post_datetime > now:
+                        future_times.append(post_datetime)
             except:
                 continue
 
     if future_times:
-        selected_time = random.choice(future_times)
-        return selected_time.strftime("%Y-%m-%d %H:%M:%S")
+        future_times.sort()
+        return future_times[0].strftime("%Y-%m-%d %H:%M:%S")
     return None
 
 # ==============================
