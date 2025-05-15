@@ -44,9 +44,19 @@ client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client
 selected_client = st.selectbox("Select Client", client_names)
 
 # ==============================
+# Day of the week filter (optional)
+# ==============================
+day_filter = st.selectbox("Filter subreddits by best day (optional):", ["Any"] + list(
+    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+))
+
+# ==============================
 # Subreddit dropdown or manual entry
 # ==============================
 subreddit_rows = load_best_time_tab()
+if day_filter != "Any":
+    subreddit_rows = [r for r in subreddit_rows if r.get("Best Day (UTC)", "") == day_filter]
+
 subreddit_options = sorted(set(
     row['Subreddit'].strip() for row in subreddit_rows if row.get('Subreddit', '').strip()
 ))
@@ -132,7 +142,6 @@ def get_next_best_time(subreddit_name, scheduled_rows):
 
     future_times.sort()
 
-    # Prioritize dates with fewer client posts
     for post_limit in [0, 1, 2, 3]:
         for dt in future_times:
             if count_client_posts_on_day(selected_client, dt.date(), scheduled_rows) == post_limit:
