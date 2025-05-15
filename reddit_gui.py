@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 
 # Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
+creds = ServiceAccountCredentials.from_json_keyfile_name(
+    "/Users/natashacarter/Documents/redactedreddit/google-credentials.json", scope)
 client = gspread.authorize(creds)
 
 # Access tabs
