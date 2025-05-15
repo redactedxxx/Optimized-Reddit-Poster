@@ -45,7 +45,7 @@ subreddit_options = sorted(set(
     row['Subreddit'].strip() for row in subreddit_rows if row.get('Subreddit', '').strip()
 ))
 
-use_dropdown = st.toggle("\ud83d\udd7d Use subreddit dropdown instead of typing", value=True)
+use_dropdown = st.toggle("🔽 Use subreddit dropdown instead of typing", value=True)
 
 if use_dropdown:
     subreddit = st.selectbox("Subreddit", subreddit_options)
@@ -74,9 +74,9 @@ if subreddit:
             flair_templates = sub.flair.link_templates
             flair_options = [f["text"] for f in flair_templates]
             if flair_options:
-                flair_text = st.selectbox("\ud83c\udfaf Optional Flair", flair_options)
+                flair_text = st.selectbox("🎯 Optional Flair", flair_options)
     except Exception as e:
-        st.warning(f"\u26a0\ufe0f Could not load flairs: {e}")
+        st.warning(f"⚠️ Could not load flairs: {e}")
 
 # ==============================
 # Helper: Count how many posts to a subreddit on a given day
@@ -148,12 +148,12 @@ if subreddit:
             display_time = est_time.strftime("%A %B %d, %Y at %I:%M %p EST")
             post_count = count_subreddit_posts_on_day(subreddit, est_time.date())
 
-            st.info(f"\ud83d\udcc5 Next best post time for **{subreddit.strip()}**: `{display_time}`")
-            st.caption(f"\ud83d\udcca There are {post_count} post(s) already scheduled for this day to r/{subreddit.strip()}.")
+            st.info(f"📅 Next best post time for **{subreddit.strip()}**: `{display_time}`")
+            st.caption(f"📊 There are {post_count} post(s) already scheduled for this day to r/{subreddit.strip()}.")
         except Exception as e:
-            st.warning(f"\u26a0\ufe0f Found time, but couldn't convert to EST: {e}")
+            st.warning(f"⚠️ Found time, but couldn't convert to EST: {e}")
     else:
-        st.warning("\u26a0\ufe0f No scheduled best times found for that subreddit.")
+        st.warning("⚠️ No scheduled best times found for that subreddit.")
 
 # ==============================
 # Schedule Post
@@ -164,7 +164,7 @@ if st.button("Schedule Post"):
     if template and subreddit and title and url:
         scheduled_time = get_next_best_time(subreddit)
         if not scheduled_time:
-            st.error("\u26a0\ufe0f No valid future best post time found for this subreddit.")
+            st.error("⚠️ No valid future best post time found for this subreddit.")
         else:
             new_row = [
                 selected_client,              # A - Client Name
@@ -181,6 +181,6 @@ if st.button("Schedule Post"):
                 flair_text                    # L - Flair Text
             ]
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
-            st.success(f"\u2705 Post scheduled for {scheduled_time} UTC.")
+            st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
     else:
-        st.error("\u26a0\ufe0f Please fill all fields and make sure the client exists.")
+        st.error("⚠️ Please fill all fields and make sure the client exists.")
