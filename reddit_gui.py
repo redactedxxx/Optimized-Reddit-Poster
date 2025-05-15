@@ -88,19 +88,21 @@ if subreddit:
 # Helper: Count how many posts to a subreddit on a given day
 # ==============================
 def count_subreddit_posts_on_day(subreddit_name, target_date, scheduled_rows):
-    count = 0
-    for row in scheduled_rows:
-        if row.get("Subreddit", "").strip().lower() == subreddit_name.strip().lower():
-            try:
-                dt = datetime.strptime(row["Post Time (UTC)"], "%Y-%m-%d %H:%M:%S")
-                if dt.date() == target_date:
-                    count += 1
-            except:
-                continue
-    return count
+    return sum(
+        1 for row in scheduled_rows
+        if row.get("Subreddit", "").strip().lower() == subreddit_name.strip().lower()
+        and datetime.strptime(row["Post Time (UTC)"], "%Y-%m-%d %H:%M:%S").date() == target_date
+    )
+
+def count_client_posts_on_day(client_name, target_date, scheduled_rows):
+    return sum(
+        1 for row in scheduled_rows
+        if row.get("Client Name", "").strip().lower() == client_name.strip().lower()
+        and datetime.strptime(row["Post Time (UTC)"], "%Y-%m-%d %H:%M:%S").date() == target_date
+    )
 
 # ==============================
-# Improved scheduling logic: skip overcrowded days
+# Prioritized scheduling logic
 # ==============================
 def get_next_best_time(subreddit_name, scheduled_rows):
     times = load_best_time_tab()
@@ -109,7 +111,6 @@ def get_next_best_time(subreddit_name, scheduled_rows):
         'Monday': 0, 'Tuesday': 1, 'Wednesday': 2,
         'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6
     }
-
     future_times = []
 
     for row in times:
@@ -117,7 +118,6 @@ def get_next_best_time(subreddit_name, scheduled_rows):
             try:
                 best_day = row['Best Day (UTC)']
                 best_hour = int(row['Best Hour (UTC)'])
-
                 target_weekday = weekdays[best_day]
 
                 for week_ahead in range(4):
@@ -126,14 +126,19 @@ def get_next_best_time(subreddit_name, scheduled_rows):
                     post_datetime = post_datetime.replace(hour=best_hour, minute=0, second=0, microsecond=0)
 
                     if post_datetime > now:
-                        if count_subreddit_posts_on_day(subreddit_name, post_datetime.date(), scheduled_rows) < 4:
-                            future_times.append(post_datetime)
+                        future_times.append(post_datetime)
             except:
                 continue
 
-    if future_times:
-        future_times.sort()
-        return future_times[0].strftime("%Y-%m-%d %H:%M:%S")
+    future_times.sort()
+
+    # Prioritize dates with fewer client posts
+    for post_limit in [0, 1, 2, 3]:
+        for dt in future_times:
+            if count_client_posts_on_day(selected_client, dt.date(), scheduled_rows) == post_limit:
+                if count_subreddit_posts_on_day(subreddit_name, dt.date(), scheduled_rows) < 4:
+                    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
     return None
 
 # ==============================
