@@ -120,19 +120,18 @@ if st.button("Schedule Post"):
             st.error("⚠️ No valid future best post time found for this subreddit.")
         else:
             new_row = [
-                selected_client,
-                subreddit.strip(),
-                title.strip(),
-                url.strip(),
-                flair_text,  # Flair Text column
-                scheduled_time,
-                "FALSE",
-                template['Reddit Username'],
-                template['Client ID'],
-                template['Client Secret'],
-                template['User Agent'],
-                template['Reddit Password'],
-                f"script by u/{template['Reddit Username']}"
+                selected_client,              # A - Client Name
+                subreddit.strip(),            # B - Subreddit
+                title.strip(),                # C - Title
+                url.strip(),                  # D - URL
+                scheduled_time,               # E - Post Time (UTC)
+                template['Reddit Username'],  # F - Reddit Username
+                template['Reddit Password'],  # G - Reddit Password
+                template['Client ID'],        # H - Client ID
+                template['Client Secret'],    # I - Client Secret
+                template['User Agent'],       # J - User Agent
+                "FALSE",                      # K - Posted?
+                flair_text                    # L - Flair Text
             ]
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
             st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
