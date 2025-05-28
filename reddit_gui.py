@@ -8,60 +8,59 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 
 # ==============================
-# Google Sheets setup (GitHub/Cloud)
+# Google Sheets setup (cloud + local)
 # ==============================
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
+
+try:
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["google"], scope)
+except Exception:
+    creds = ServiceAccountCredentials.from_json_keyfile_name(
+        os.path.expanduser("~/Documents/redactedreddit/google-credentials.json"), scope)
+
 client = gspread.authorize(creds)
 
+# ==============================
+# Google Sheets tabs
+# ==============================
 sheet = client.open("Reddit Post Scheduler")
 main_tab = sheet.worksheet("Sheet1")
 post_tab = sheet.worksheet("Post Queue")
 best_time_tab = sheet.worksheet("Best Time")
 
 # ==============================
-# Cached data loaders
+# Helper: Count how many posts to a subreddit on a given day
 # ==============================
-@st.cache_data(ttl=60)
-def load_main_tab():
-    return main_tab.get_all_records()
-
-@st.cache_data(ttl=60)
-def load_post_tab():
-    return post_tab.get_all_records()
-
-@st.cache_data(ttl=60)
-def load_best_time_tab():
-    return best_time_tab.get_all_records()
+def count_subreddit_posts_on_day(subreddit_name, target_date, cached_rows):
+    count = 0
+    for row in cached_rows:
+        if row.get("Subreddit", "").strip().lower() == subreddit_name.strip().lower():
+            try:
+                dt = datetime.strptime(row["Post Time (UTC)"], "%Y-%m-%d %H:%M:%S")
+                if dt.date() == target_date:
+                    count += 1
+            except:
+                continue
+    return count
 
 # ==============================
 # UI Header
 # ==============================
-st.title("Reddit Post Scheduler")
+st.title("📬 Reddit Post Scheduler")
 
-rows = load_main_tab()
+rows = main_tab.get_all_records()
 client_names = list(sorted(set(row['Client Name'] for row in rows if row['Client Name'])))
 selected_client = st.selectbox("Select Client", client_names)
 
 # ==============================
-# Day of the week filter (optional)
-# ==============================
-day_filter = st.selectbox("Filter subreddits by best day (optional):", ["Any"] + list(
-    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-))
-
-# ==============================
 # Subreddit dropdown or manual entry
 # ==============================
-subreddit_rows = load_best_time_tab()
-if day_filter != "Any":
-    subreddit_rows = [r for r in subreddit_rows if r.get("Best Day (UTC)", "") == day_filter]
-
+subreddit_rows = best_time_tab.get_all_records()
 subreddit_options = sorted(set(
     row['Subreddit'].strip() for row in subreddit_rows if row.get('Subreddit', '').strip()
 ))
 
-use_dropdown = st.toggle("Use subreddit dropdown instead of typing", value=True)
+use_dropdown = st.toggle("🔽 Use subreddit dropdown instead of typing", value=True)
 
 if use_dropdown:
     subreddit = st.selectbox("Subreddit", subreddit_options)
@@ -90,44 +89,28 @@ if subreddit:
             flair_templates = sub.flair.link_templates
             flair_options = [f["text"] for f in flair_templates]
             if flair_options:
-                flair_text = st.selectbox("Optional Flair", flair_options)
+                flair_text = st.selectbox("🎯 Optional Flair", flair_options)
     except Exception as e:
-        st.warning(f"Could not load flairs: {e}")
+        st.warning(f"⚠️ Could not load flairs: {e}")
 
 # ==============================
-# Helper: Count how many posts to a subreddit on a given day
+# Improved scheduling logic: skip overcrowded days
 # ==============================
-def count_subreddit_posts_on_day(subreddit_name, target_date, scheduled_rows):
-    return sum(
-        1 for row in scheduled_rows
-        if row.get("Subreddit", "").strip().lower() == subreddit_name.strip().lower()
-        and datetime.strptime(row["Post Time (UTC)"], "%Y-%m-%d %H:%M:%S").date() == target_date
-    )
-
-def count_client_posts_on_day(client_name, target_date, scheduled_rows):
-    return sum(
-        1 for row in scheduled_rows
-        if row.get("Client Name", "").strip().lower() == client_name.strip().lower()
-        and datetime.strptime(row["Post Time (UTC)"], "%Y-%m-%d %H:%M:%S").date() == target_date
-    )
-
-# ==============================
-# Prioritized scheduling logic
-# ==============================
-def get_next_best_time(subreddit_name, scheduled_rows):
-    times = load_best_time_tab()
+def get_next_best_time(subreddit_name, best_times):
     now = datetime.utcnow()
     weekdays = {
         'Monday': 0, 'Tuesday': 1, 'Wednesday': 2,
         'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6
     }
+
     future_times = []
 
-    for row in times:
+    for row in best_times:
         if row['Subreddit'].strip().lower() == subreddit_name.strip().lower():
             try:
                 best_day = row['Best Day (UTC)']
                 best_hour = int(row['Best Hour (UTC)'])
+
                 target_weekday = weekdays[best_day]
 
                 for week_ahead in range(4):
@@ -140,39 +123,30 @@ def get_next_best_time(subreddit_name, scheduled_rows):
             except:
                 continue
 
-    future_times.sort()
-
-    for post_limit in [0, 1, 2, 3]:
-        for dt in future_times:
-            if count_client_posts_on_day(selected_client, dt.date(), scheduled_rows) == post_limit:
-                if count_subreddit_posts_on_day(subreddit_name, dt.date(), scheduled_rows) < 4:
-                    return dt.strftime("%Y-%m-%d %H:%M:%S")
-
-    return None
+    if future_times:
+        future_times.sort()
+        return future_times
+    return []
 
 # ==============================
 # Display next best post time
 # ==============================
-scheduled_rows = load_post_tab()
 if subreddit:
-    preview_time_utc = get_next_best_time(subreddit, scheduled_rows)
-    if preview_time_utc:
+    preview_options = get_next_best_time(subreddit, subreddit_rows)
+    if preview_options:
         try:
-            utc_time = datetime.strptime(preview_time_utc, "%Y-%m-%d %H:%M:%S")
+            utc_time = preview_options[0]
             eastern = pytz.timezone('US/Eastern')
             utc = pytz.utc
-            utc_time = utc.localize(utc_time)
+            utc_time = utc.localize(utc_time) if utc_time.tzinfo is None else utc_time
             est_time = utc_time.astimezone(eastern)
 
             display_time = est_time.strftime("%A %B %d, %Y at %I:%M %p EST")
-            post_count = count_subreddit_posts_on_day(subreddit, est_time.date(), scheduled_rows)
-
-            st.info(f"Next best post time for {subreddit.strip()}: {display_time}")
-            st.caption(f"There are {post_count} post(s) already scheduled for this day to r/{subreddit.strip()}.")
+            st.info(f"📅 Next best post time for **{subreddit.strip()}**: `{display_time}`")
         except Exception as e:
-            st.warning(f"Found time, but couldn't convert to EST: {e}")
+            st.warning(f"⚠️ Found time, but couldn't convert to EST: {e}")
     else:
-        st.warning("No scheduled best times found for that subreddit.")
+        st.warning("⚠️ No scheduled best times found for that subreddit.")
 
 # ==============================
 # Schedule Post
@@ -181,10 +155,11 @@ if st.button("Schedule Post"):
     template = next((row for row in rows if row['Client Name'] == selected_client), None)
 
     if template and subreddit and title and url:
-        scheduled_time = get_next_best_time(subreddit, scheduled_rows)
-        if not scheduled_time:
-            st.error("No valid future best post time found for this subreddit.")
+        best_time_options = get_next_best_time(subreddit, subreddit_rows)
+        if not best_time_options:
+            st.error("⚠️ No valid future best post time found for this subreddit.")
         else:
+            scheduled_time = best_time_options[0].strftime("%Y-%m-%d %H:%M:%S")
             new_row = [
                 selected_client,
                 subreddit.strip(),
@@ -200,6 +175,40 @@ if st.button("Schedule Post"):
                 flair_text
             ]
             post_tab.append_row(new_row, value_input_option="USER_ENTERED")
-            st.success(f"Post scheduled for {scheduled_time} UTC.")
+            st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
     else:
-        st.error("Please fill all fields and make sure the client exists.")
+        st.error("⚠️ Please fill all fields and make sure the client exists.")
+
+# ==============================
+# 🧩 Schedule all unscheduled posts
+# ==============================
+if st.button("🧩 Schedule All Unscheduled Posts"):
+    all_rows = post_tab.get_all_records()
+    best_times = best_time_tab.get_all_records()
+    unscheduled = [row for row in all_rows if not row.get("Post Time (UTC)", "").strip()]
+    scheduled_rows = all_rows
+    headers = post_tab.row_values(1)
+    time_col = headers.index("Post Time (UTC)") + 1
+    today = datetime.utcnow().date()
+    row_offset = 2
+    count = 0
+    used_times = set()  # GLOBAL time tracker
+
+    for i, row in enumerate(unscheduled):
+        subreddit = row.get("Subreddit", "").strip()
+        if not subreddit:
+            continue
+
+        best_time_options = get_next_best_time(subreddit, best_times)
+        for best_time_dt in best_time_options:
+            best_time_str = best_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+            if best_time_str not in used_times:
+                if count_subreddit_posts_on_day(subreddit, best_time_dt.date(), scheduled_rows) < 4:
+                    post_tab.update_cell(i + row_offset, time_col, best_time_str)
+                    used_times.add(best_time_str)
+                    count += 1
+                    break
+        else:
+            st.warning(f"⚠️ No available time found for row {i + row_offset} (subreddit: {subreddit})")
+
+    st.success(f"✅ Scheduled {count} unscheduled post(s) with unique global times.")
