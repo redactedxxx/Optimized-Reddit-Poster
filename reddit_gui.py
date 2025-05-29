@@ -60,7 +60,7 @@ subreddit_options = sorted(set(
     row['Subreddit'].strip() for row in subreddit_rows if row.get('Subreddit', '').strip()
 ))
 
-use_dropdown = st.toggle("🔽 Use subreddit dropdown instead of typing", value=True)
+use_dropdown = st.toggle("🕽️ Use subreddit dropdown instead of typing", value=True)
 
 if use_dropdown:
     subreddit = st.selectbox("Subreddit", subreddit_options)
@@ -129,60 +129,58 @@ def get_next_best_time(subreddit_name, best_times):
     return []
 
 # ==============================
-# Display next best post time
+# Display toggleable best post times
 # ==============================
+selected_utc_time = None
+
 if subreddit:
     preview_options = get_next_best_time(subreddit, subreddit_rows)
     if preview_options:
-        try:
-            utc_time = preview_options[0]
-            eastern = pytz.timezone('US/Eastern')
-            utc = pytz.utc
-            utc_time = utc.localize(utc_time) if utc_time.tzinfo is None else utc_time
-            est_time = utc_time.astimezone(eastern)
+        eastern = pytz.timezone('US/Eastern')
+        utc = pytz.utc
 
-            display_time = est_time.strftime("%A %B %d, %Y at %I:%M %p EST")
-            st.info(f"📅 Next best post time for **{subreddit.strip()}**: `{display_time}`")
-        except Exception as e:
-            st.warning(f"⚠️ Found time, but couldn't convert to EST: {e}")
+        display_times = []
+        for dt in preview_options:
+            dt = utc.localize(dt) if dt.tzinfo is None else dt
+            est_time = dt.astimezone(eastern)
+            display_times.append(est_time.strftime("%A %B %d, %Y at %I:%M %p EST"))
+
+        index = st.selectbox("📆 Choose best post time", list(enumerate(display_times)), format_func=lambda x: x[1])
+        selected_utc_time = preview_options[index[0]]
     else:
         st.warning("⚠️ No scheduled best times found for that subreddit.")
 
 # ==============================
-# Schedule Post
+# Schedule Post with selected time
 # ==============================
 if st.button("Schedule Post"):
     template = next((row for row in rows if row['Client Name'] == selected_client), None)
 
-    if template and subreddit and title and url:
-        best_time_options = get_next_best_time(subreddit, subreddit_rows)
-        if not best_time_options:
-            st.error("⚠️ No valid future best post time found for this subreddit.")
-        else:
-            scheduled_time = best_time_options[0].strftime("%Y-%m-%d %H:%M:%S")
-            new_row = [
-                selected_client,
-                subreddit.strip(),
-                title.strip(),
-                url.strip(),
-                scheduled_time,
-                template['Reddit Username'],
-                template['Reddit Password'],
-                template['Client ID'],
-                template['Client Secret'],
-                template['User Agent'],
-                "FALSE",
-                flair_text
-            ]
-            post_tab.append_row(new_row, value_input_option="USER_ENTERED")
-            st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
+    if template and subreddit and title and url and selected_utc_time:
+        scheduled_time = selected_utc_time.strftime("%Y-%m-%d %H:%M:%S")
+        new_row = [
+            selected_client,
+            subreddit.strip(),
+            title.strip(),
+            url.strip(),
+            scheduled_time,
+            template['Reddit Username'],
+            template['Reddit Password'],
+            template['Client ID'],
+            template['Client Secret'],
+            template['User Agent'],
+            "FALSE",
+            flair_text
+        ]
+        post_tab.append_row(new_row, value_input_option="USER_ENTERED")
+        st.success(f"✅ Post scheduled for {scheduled_time} UTC.")
     else:
         st.error("⚠️ Please fill all fields and make sure the client exists.")
 
 # ==============================
-# 🧩 Schedule all unscheduled posts
+# 🤩 Schedule all unscheduled posts
 # ==============================
-if st.button("🧩 Schedule All Unscheduled Posts"):
+if st.button("🤩 Schedule All Unscheduled Posts"):
     all_rows = post_tab.get_all_records()
     best_times = best_time_tab.get_all_records()
     headers = post_tab.row_values(1)
@@ -192,7 +190,6 @@ if st.button("🧩 Schedule All Unscheduled Posts"):
     used_times = set()
     scheduled_rows = all_rows
 
-    # Correct: track actual row number in sheet
     unscheduled = []
     for idx, row in enumerate(all_rows):
         if not row.get("Post Time (UTC)", "").strip():
