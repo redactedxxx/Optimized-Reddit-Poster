@@ -185,16 +185,20 @@ if st.button("Schedule Post"):
 if st.button("🧩 Schedule All Unscheduled Posts"):
     all_rows = post_tab.get_all_records()
     best_times = best_time_tab.get_all_records()
-    unscheduled = [row for row in all_rows if not row.get("Post Time (UTC)", "").strip()]
-    scheduled_rows = all_rows
     headers = post_tab.row_values(1)
     time_col = headers.index("Post Time (UTC)") + 1
-    today = datetime.utcnow().date()
     row_offset = 2
     count = 0
-    used_times = set()  # GLOBAL time tracker
+    used_times = set()
+    scheduled_rows = all_rows
 
-    for i, row in enumerate(unscheduled):
+    # Correct: track actual row number in sheet
+    unscheduled = []
+    for idx, row in enumerate(all_rows):
+        if not row.get("Post Time (UTC)", "").strip():
+            unscheduled.append((idx + row_offset, row))
+
+    for sheet_row_idx, row in unscheduled:
         subreddit = row.get("Subreddit", "").strip()
         if not subreddit:
             continue
@@ -204,11 +208,11 @@ if st.button("🧩 Schedule All Unscheduled Posts"):
             best_time_str = best_time_dt.strftime("%Y-%m-%d %H:%M:%S")
             if best_time_str not in used_times:
                 if count_subreddit_posts_on_day(subreddit, best_time_dt.date(), scheduled_rows) < 4:
-                    post_tab.update_cell(i + row_offset, time_col, best_time_str)
+                    post_tab.update_cell(sheet_row_idx, time_col, best_time_str)
                     used_times.add(best_time_str)
                     count += 1
                     break
         else:
-            st.warning(f"⚠️ No available time found for row {i + row_offset} (subreddit: {subreddit})")
+            st.warning(f"⚠️ No available time found for row {sheet_row_idx} (subreddit: {subreddit})")
 
     st.success(f"✅ Scheduled {count} unscheduled post(s) with unique global times.")
